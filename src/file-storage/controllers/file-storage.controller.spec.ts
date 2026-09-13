@@ -16,8 +16,11 @@ describe('FileStorageController', () => {
   const url = '/file-storage'
   let app: INestApplication<App>
   let fileStorageService: FileStorageService
+  let fileCacheService: { getStorage: jest.Mock; getIdsByType: jest.Mock }
 
   beforeEach(async () => {
+    fileCacheService = { getStorage: jest.fn(), getIdsByType: jest.fn() }
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [ConfigModule],
       controllers: [FileStorageController],
@@ -33,7 +36,10 @@ describe('FileStorageController', () => {
         },
         {
           provide: FileCacheService,
-          useValue: { set: jest.fn(() => Promise.resolve()) },
+          useValue: {
+            set: jest.fn(() => Promise.resolve()),
+            ...fileCacheService,
+          },
         },
         {
           provide: getRepositoryToken(FileEntity),
@@ -162,6 +168,82 @@ describe('FileStorageController', () => {
             message: [
               'fileType must be shorter than or equal to 50 characters',
             ],
+            statusCode: HttpStatus.BAD_REQUEST,
+          })
+        })
+    })
+  })
+
+  describe('GET /file-storage/:id/:type', () => {
+    it('returns the id, type, and storage when the file is cached', () => {
+      fileCacheService.getStorage.mockResolvedValueOnce('hot')
+
+      return request(app.getHttpServer())
+        .get(`${url}/abc-123/document`)
+        .expect(HttpStatus.OK)
+        .expect((response) => {
+          expect(response.body).toEqual({
+            id: 'abc-123',
+            type: 'document',
+            storage: 'hot',
+          })
+        })
+    })
+
+    it('returns 404 when the file is not cached', () => {
+      fileCacheService.getStorage.mockResolvedValueOnce(null)
+
+      return request(app.getHttpServer())
+        .get(`${url}/abc-123/document`)
+        .expect(HttpStatus.NOT_FOUND)
+        .expect((response) => {
+          expect(response.body).toEqual({
+            statusCode: HttpStatus.NOT_FOUND,
+            message: 'File with id abc-123 and type document not found',
+          })
+        })
+    })
+  })
+
+  describe('GET /file-storage/list', () => {
+    it('returns the ids cached under the given type', () => {
+      fileCacheService.getIdsByType.mockResolvedValueOnce(['id-1', 'id-2'])
+
+      return request(app.getHttpServer())
+        .get(`${url}/list`)
+        .query({ fileType: 'document' })
+        .expect(HttpStatus.OK)
+        .expect((response) => {
+          expect(response.body).toEqual(['id-1', 'id-2'])
+        })
+    })
+
+    it('rejects a request missing fileType', () => {
+      return request(app.getHttpServer())
+        .get(`${url}/list`)
+        .expect(HttpStatus.BAD_REQUEST)
+        .expect((response) => {
+          expect(response.body).toEqual({
+            error: 'Bad Request',
+            message: [
+              'fileType must be shorter than or equal to 50 characters',
+              'fileType should not be empty',
+              'fileType must be a string',
+            ],
+            statusCode: HttpStatus.BAD_REQUEST,
+          })
+        })
+    })
+
+    it('rejects an empty fileType', () => {
+      return request(app.getHttpServer())
+        .get(`${url}/list`)
+        .query({ fileType: '' })
+        .expect(HttpStatus.BAD_REQUEST)
+        .expect((response) => {
+          expect(response.body).toEqual({
+            error: 'Bad Request',
+            message: ['fileType should not be empty'],
             statusCode: HttpStatus.BAD_REQUEST,
           })
         })

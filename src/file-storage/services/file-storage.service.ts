@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 
-import { Injectable, Logger } from '@nestjs/common'
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
 import { FileEntity, FileStorage } from '../../database/entities/file.entity'
 import { StorageService } from '../../storage/storage.service'
+import { FileStorageDto } from '../dto/file-storage.dto'
 import { FileCacheService } from './file-cache.service'
 
 @Injectable()
@@ -19,6 +20,23 @@ export class FileStorageService {
     @InjectRepository(FileEntity)
     private readonly fileRepository: Repository<FileEntity>,
   ) {}
+
+  async getFileStorage(id: string, type: string): Promise<FileStorageDto> {
+    const storage = await this.fileCacheService.getStorage(type, id)
+
+    if (!storage) {
+      throw new HttpException(
+        `File with id ${id} and type ${type} not found`,
+        HttpStatus.NOT_FOUND,
+      )
+    }
+
+    return { id, type, storage }
+  }
+
+  async getFileListByType(type: string): Promise<string[]> {
+    return this.fileCacheService.getIdsByType(type)
+  }
 
   async saveFile(file: Express.Multer.File, fileType: string): Promise<string> {
     const id = randomUUID()

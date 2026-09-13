@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream'
 
+import { HttpException, HttpStatus } from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
 import { getRepositoryToken } from '@nestjs/typeorm'
 
@@ -11,7 +12,11 @@ import { FileStorageService } from './file-storage.service'
 describe('FileStorageService', () => {
   let service: FileStorageService
   let storageService: { upload: jest.Mock; delete: jest.Mock }
-  let fileCacheService: { set: jest.Mock }
+  let fileCacheService: {
+    set: jest.Mock
+    getStorage: jest.Mock
+    getIdsByType: jest.Mock
+  }
   let fileRepository: {
     create: jest.Mock
     save: jest.Mock
@@ -36,7 +41,11 @@ describe('FileStorageService', () => {
       upload: jest.fn(),
       delete: jest.fn(() => Promise.resolve()),
     }
-    fileCacheService = { set: jest.fn() }
+    fileCacheService = {
+      set: jest.fn(() => Promise.resolve()),
+      getStorage: jest.fn(),
+      getIdsByType: jest.fn(),
+    }
     fileRepository = {
       create: jest.fn((entity) => entity),
       save: jest.fn((entity) => Promise.resolve(entity)),
@@ -132,6 +141,59 @@ describe('FileStorageService', () => {
         FileStorage.HOT,
         'report.txt',
       )
+    })
+  })
+
+  describe('getFileStorage', () => {
+    it('returns the id, type, and storage when the file is cached', async () => {
+      fileCacheService.getStorage.mockResolvedValueOnce(FileStorage.HOT)
+
+      const result = await service.getFileStorage('abc-123', 'document')
+
+      expect(fileCacheService.getStorage).toHaveBeenCalledWith(
+        'document',
+        'abc-123',
+      )
+      expect(result).toEqual({
+        id: 'abc-123',
+        type: 'document',
+        storage: FileStorage.HOT,
+      })
+    })
+
+    it('throws a not-found when the file is not cached', async () => {
+      fileCacheService.getStorage.mockResolvedValueOnce(null)
+
+      await expect(
+        service.getFileStorage('abc-123', 'document'),
+      ).rejects.toThrow(HttpException)
+
+      try {
+        await service.getFileStorage('abc-123', 'document')
+
+        throw new Error('expected getFileStorage to throw')
+      } catch (error) {
+        expect((error as HttpException).getStatus()).toBe(HttpStatus.NOT_FOUND)
+      }
+    })
+  })
+
+  describe('getFileListByType', () => {
+    it('returns the ids cached under the given type', async () => {
+      fileCacheService.getIdsByType.mockResolvedValueOnce(['id-1', 'id-2'])
+
+      const result = await service.getFileListByType('document')
+
+      expect(fileCacheService.getIdsByType).toHaveBeenCalledWith('document')
+      expect(result).toEqual(['id-1', 'id-2'])
+    })
+
+    it('returns an empty array when no files are cached for the type', async () => {
+      fileCacheService.getIdsByType.mockResolvedValueOnce([])
+
+      const result = await service.getFileListByType('document')
+
+      expect(result).toEqual([])
     })
   })
 })

@@ -1,22 +1,42 @@
 import {
   Body,
   Controller,
+  Get,
+  Param,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 
 import {
+  FileStorageDto,
+  GetFileListQueryDto,
   UploadFileBodyDto,
   UploadFileResponseDto,
-} from '../dto/upload-file.dto'
+} from '../dto/file-storage.dto'
 import { FileValidatorPipe } from '../pipes/file-validator.pipe'
 import { FileStorageService } from '../services/file-storage.service'
 
 @Controller('file-storage')
 export class FileStorageController {
   constructor(private fileStorageService: FileStorageService) {}
+
+  @Get('/:id/:type')
+  async getFileStorage(
+    @Param('id') id: string,
+    @Param('type') type: string,
+  ): Promise<FileStorageDto> {
+    return this.fileStorageService.getFileStorage(id, type)
+  }
+
+  @Get('/list')
+  async listFiles(
+    @Query() { fileType }: GetFileListQueryDto,
+  ): Promise<string[]> {
+    return this.fileStorageService.getFileListByType(fileType)
+  }
 
   @Post('/')
   @UseInterceptors(FileInterceptor('file'))
