@@ -20,6 +20,7 @@ describe('FileStorageService', () => {
     set: jest.Mock
     getStorage: jest.Mock
     getIdsByType: jest.Mock
+    delete: jest.Mock
   }
   let fileRepository: {
     create: jest.Mock
@@ -51,6 +52,7 @@ describe('FileStorageService', () => {
       set: jest.fn(() => Promise.resolve()),
       getStorage: jest.fn(),
       getIdsByType: jest.fn(),
+      delete: jest.fn(() => Promise.resolve()),
     }
     fileRepository = {
       create: jest.fn((entity) => entity),
@@ -264,6 +266,67 @@ describe('FileStorageService', () => {
         HttpException,
       )
       expect(fileCacheService.getStorage).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('deleteFile', () => {
+    const fileEntity = {
+      id: 'abc-123',
+      type: 'document',
+      originalName: 'report.txt',
+      storage: FileStorage.HOT,
+    }
+
+    it('deletes the entity, storage, and cache entry', async () => {
+      fileRepository.findOneBy.mockResolvedValueOnce(fileEntity)
+
+      await service.deleteFile('abc-123', 'document')
+
+      expect(fileRepository.delete).toHaveBeenCalledWith('abc-123')
+      expect(storageService.delete).toHaveBeenCalledWith(
+        'abc-123',
+        FileStorage.HOT,
+        'report.txt',
+      )
+      expect(fileCacheService.delete).toHaveBeenCalledWith(
+        'document',
+        'abc-123',
+      )
+    })
+
+    it('throws a not-found and deletes nothing when the file does not exist', async () => {
+      fileRepository.findOneBy.mockResolvedValueOnce(null)
+
+      await expect(service.deleteFile('abc-123', 'document')).rejects.toThrow(
+        HttpException,
+      )
+
+      expect(fileRepository.delete).not.toHaveBeenCalled()
+      expect(storageService.delete).not.toHaveBeenCalled()
+      expect(fileCacheService.delete).not.toHaveBeenCalled()
+    })
+
+    it('still succeeds and still cleans up the cache when deleting storage fails', async () => {
+      fileRepository.findOneBy.mockResolvedValueOnce(fileEntity)
+      storageService.delete.mockRejectedValueOnce(new Error('minio down'))
+
+      await expect(
+        service.deleteFile('abc-123', 'document'),
+      ).resolves.toBeUndefined()
+
+      expect(fileCacheService.delete).toHaveBeenCalledWith(
+        'document',
+        'abc-123',
+      )
+    })
+
+    it('still succeeds when deleting the cache entry fails', async () => {
+      fileRepository.findOneBy.mockResolvedValueOnce(fileEntity)
+      fileCacheService.delete.mockRejectedValueOnce(new Error('redis down'))
+
+      await expect(
+        service.deleteFile('abc-123', 'document'),
+      ).resolves.toBeUndefined()
     })
   })
 

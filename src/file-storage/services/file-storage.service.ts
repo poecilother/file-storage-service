@@ -28,10 +28,7 @@ export class FileStorageService {
     const fileEntity = await this.fileRepository.findOneBy({ id, type })
 
     if (!fileEntity) {
-      throw new HttpException(
-        `File with id ${id} and type ${type} not found`,
-        HttpStatus.NOT_FOUND,
-      )
+      throw this.entityNotFoundError(id, type)
     }
 
     const stream = await this.storageService.download(
@@ -53,10 +50,7 @@ export class FileStorageService {
     const fileEntity = await this.fileRepository.findOneBy({ id, type })
 
     if (!fileEntity) {
-      throw new HttpException(
-        `File with id ${id} and type ${type} not found`,
-        HttpStatus.NOT_FOUND,
-      )
+      throw this.entityNotFoundError(id, type)
     }
 
     await this.fileCacheService
@@ -112,6 +106,30 @@ export class FileStorageService {
     return id
   }
 
+  async deleteFile(id: string, type: string): Promise<void> {
+    const fileEntity = await this.fileRepository.findOneBy({ id, type })
+
+    if (!fileEntity) {
+      throw this.entityNotFoundError(id, type)
+    }
+
+    await this.fileRepository.delete(id)
+
+    await this.storageService
+      .delete(id, fileEntity.storage, fileEntity.originalName)
+      .catch((error: Error) => {
+        this.logger.warn(
+          `Failed to delete storage for ${id} after deleting its entity: ${error.message}`,
+        )
+      })
+
+    await this.fileCacheService.delete(type, id).catch((error: Error) => {
+      this.logger.warn(
+        `Failed to delete cache entry for ${id} after deleting its entity: ${error.message}`,
+      )
+    })
+  }
+
   private async rollback(
     id: string,
     storage: FileStorage,
@@ -133,5 +151,12 @@ export class FileStorageService {
           `Failed to clean up storage for ${id} after a failed save: ${error.message}`,
         )
       })
+  }
+
+  private entityNotFoundError(id: string, type: string): HttpException {
+    return new HttpException(
+      `File with id ${id} and type ${type} not found`,
+      HttpStatus.NOT_FOUND,
+    )
   }
 }

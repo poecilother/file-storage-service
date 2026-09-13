@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   StreamableFile,
@@ -26,7 +28,7 @@ export class FileStorageController {
 
   @Get('/:id/:type')
   async getFile(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Param('type') type: string,
   ): Promise<StreamableFile> {
     const { stream, fileEntity } = await this.fileStorageService.getFile(
@@ -42,7 +44,7 @@ export class FileStorageController {
 
   @Get('/storage/:id/:type')
   async getFileStorage(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Param('type') type: string,
   ): Promise<FileStorageDto> {
     return this.fileStorageService.getFileStorage(id, type)
@@ -65,5 +67,13 @@ export class FileStorageController {
     const id = await this.fileStorageService.saveFile(file, fileType)
 
     return { id }
+  }
+
+  @Delete('/:id/:type')
+  async deleteFile(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('type') type: string,
+  ): Promise<void> {
+    await this.fileStorageService.deleteFile(id, type)
   }
 }

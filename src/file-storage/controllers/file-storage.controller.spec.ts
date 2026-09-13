@@ -18,14 +18,28 @@ describe('FileStorageController', () => {
   const url = '/file-storage'
   let app: INestApplication<App>
   let fileStorageService: FileStorageService
-  let fileCacheService: { getStorage: jest.Mock; getIdsByType: jest.Mock }
-  let storageService: { download: jest.Mock }
-  let fileRepository: { findOneBy: jest.Mock }
+  let fileCacheService: {
+    getStorage: jest.Mock
+    getIdsByType: jest.Mock
+    delete: jest.Mock
+  }
+  let storageService: { download: jest.Mock; delete: jest.Mock }
+  let fileRepository: { findOneBy: jest.Mock; delete: jest.Mock }
 
   beforeEach(async () => {
-    fileCacheService = { getStorage: jest.fn(), getIdsByType: jest.fn() }
-    storageService = { download: jest.fn() }
-    fileRepository = { findOneBy: jest.fn() }
+    fileCacheService = {
+      getStorage: jest.fn(),
+      getIdsByType: jest.fn(),
+      delete: jest.fn(() => Promise.resolve()),
+    }
+    storageService = {
+      download: jest.fn(),
+      delete: jest.fn(() => Promise.resolve()),
+    }
+    fileRepository = {
+      findOneBy: jest.fn(),
+      delete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
+    }
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [ConfigModule],
@@ -37,7 +51,6 @@ describe('FileStorageController', () => {
           provide: StorageService,
           useValue: {
             upload: jest.fn(() => Promise.resolve()),
-            delete: jest.fn(() => Promise.resolve()),
             ...storageService,
           },
         },
@@ -53,7 +66,6 @@ describe('FileStorageController', () => {
           useValue: {
             create: jest.fn((entity) => entity),
             save: jest.fn((entity) => Promise.resolve(entity)),
-            delete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
             ...fileRepository,
           },
         },
@@ -185,7 +197,7 @@ describe('FileStorageController', () => {
   describe('GET /file-storage/:id/:type', () => {
     it('streams the file content with the correct headers', () => {
       fileRepository.findOneBy.mockResolvedValueOnce({
-        id: 'abc-123',
+        id: '00000000-0000-0000-0000-000000000001',
         type: 'document',
         originalName: 'report.txt',
         mimetype: 'text/plain',
@@ -196,7 +208,7 @@ describe('FileStorageController', () => {
       )
 
       return request(app.getHttpServer())
-        .get(`${url}/abc-123/document`)
+        .get(`${url}/00000000-0000-0000-0000-000000000001/document`)
         .expect(HttpStatus.OK)
         .expect('Content-Type', 'text/plain')
         .expect(
@@ -210,7 +222,7 @@ describe('FileStorageController', () => {
 
     it('serves the file even when the cache has nothing for it', () => {
       fileRepository.findOneBy.mockResolvedValueOnce({
-        id: 'abc-123',
+        id: '00000000-0000-0000-0000-000000000001',
         type: 'document',
         originalName: 'report.txt',
         mimetype: 'text/plain',
@@ -221,7 +233,7 @@ describe('FileStorageController', () => {
       )
 
       return request(app.getHttpServer())
-        .get(`${url}/abc-123/document`)
+        .get(`${url}/00000000-0000-0000-0000-000000000001/document`)
         .expect(HttpStatus.OK)
         .expect((response) => {
           expect(response.text).toBe('file content')
@@ -233,13 +245,28 @@ describe('FileStorageController', () => {
       fileRepository.findOneBy.mockResolvedValueOnce(null)
 
       return request(app.getHttpServer())
-        .get(`${url}/abc-123/document`)
+        .get(`${url}/00000000-0000-0000-0000-000000000001/document`)
         .expect(HttpStatus.NOT_FOUND)
         .expect((response) => {
           expect(response.body).toEqual({
             statusCode: HttpStatus.NOT_FOUND,
-            message: 'File with id abc-123 and type document not found',
+            message:
+              'File with id 00000000-0000-0000-0000-000000000001 and type document not found',
           })
+        })
+    })
+
+    it('rejects a malformed id before it ever reaches the database', () => {
+      return request(app.getHttpServer())
+        .get(`${url}/not-a-uuid/document`)
+        .expect(HttpStatus.BAD_REQUEST)
+        .expect((response) => {
+          expect(response.body).toEqual({
+            error: 'Bad Request',
+            message: 'Validation failed (uuid is expected)',
+            statusCode: HttpStatus.BAD_REQUEST,
+          })
+          expect(fileRepository.findOneBy).not.toHaveBeenCalled()
         })
     })
   })
@@ -249,11 +276,11 @@ describe('FileStorageController', () => {
       fileCacheService.getStorage.mockResolvedValueOnce('hot')
 
       return request(app.getHttpServer())
-        .get(`${url}/storage/abc-123/document`)
+        .get(`${url}/storage/00000000-0000-0000-0000-000000000001/document`)
         .expect(HttpStatus.OK)
         .expect((response) => {
           expect(response.body).toEqual({
-            id: 'abc-123',
+            id: '00000000-0000-0000-0000-000000000001',
             type: 'document',
             storage: 'hot',
           })
@@ -264,17 +291,17 @@ describe('FileStorageController', () => {
     it('falls back to the database on a cache miss', () => {
       fileCacheService.getStorage.mockResolvedValueOnce(null)
       fileRepository.findOneBy.mockResolvedValueOnce({
-        id: 'abc-123',
+        id: '00000000-0000-0000-0000-000000000001',
         type: 'document',
         storage: 'archive',
       })
 
       return request(app.getHttpServer())
-        .get(`${url}/storage/abc-123/document`)
+        .get(`${url}/storage/00000000-0000-0000-0000-000000000001/document`)
         .expect(HttpStatus.OK)
         .expect((response) => {
           expect(response.body).toEqual({
-            id: 'abc-123',
+            id: '00000000-0000-0000-0000-000000000001',
             type: 'document',
             storage: 'archive',
           })
@@ -286,13 +313,114 @@ describe('FileStorageController', () => {
       fileRepository.findOneBy.mockResolvedValueOnce(null)
 
       return request(app.getHttpServer())
-        .get(`${url}/storage/abc-123/document`)
+        .get(`${url}/storage/00000000-0000-0000-0000-000000000001/document`)
         .expect(HttpStatus.NOT_FOUND)
         .expect((response) => {
           expect(response.body).toEqual({
             statusCode: HttpStatus.NOT_FOUND,
-            message: 'File with id abc-123 and type document not found',
+            message:
+              'File with id 00000000-0000-0000-0000-000000000001 and type document not found',
           })
+        })
+    })
+
+    it('rejects a malformed id before it ever reaches the cache or database', () => {
+      return request(app.getHttpServer())
+        .get(`${url}/storage/not-a-uuid/document`)
+        .expect(HttpStatus.BAD_REQUEST)
+        .expect((response) => {
+          expect(response.body).toEqual({
+            error: 'Bad Request',
+            message: 'Validation failed (uuid is expected)',
+            statusCode: HttpStatus.BAD_REQUEST,
+          })
+          expect(fileCacheService.getStorage).not.toHaveBeenCalled()
+          expect(fileRepository.findOneBy).not.toHaveBeenCalled()
+        })
+    })
+  })
+
+  describe('DELETE /file-storage/:id/:type', () => {
+    const fileEntity = {
+      id: '00000000-0000-0000-0000-000000000001',
+      type: 'document',
+      originalName: 'report.txt',
+      storage: 'hot',
+    }
+
+    it('deletes the file', () => {
+      fileRepository.findOneBy.mockResolvedValueOnce(fileEntity)
+
+      return request(app.getHttpServer())
+        .delete(`${url}/00000000-0000-0000-0000-000000000001/document`)
+        .expect(HttpStatus.OK)
+        .expect(() => {
+          expect(fileRepository.delete).toHaveBeenCalledWith(
+            '00000000-0000-0000-0000-000000000001',
+          )
+          expect(storageService.delete).toHaveBeenCalledWith(
+            '00000000-0000-0000-0000-000000000001',
+            'hot',
+            'report.txt',
+          )
+          expect(fileCacheService.delete).toHaveBeenCalledWith(
+            'document',
+            '00000000-0000-0000-0000-000000000001',
+          )
+        })
+    })
+
+    it('returns 404 when the file does not exist', () => {
+      fileRepository.findOneBy.mockResolvedValueOnce(null)
+
+      return request(app.getHttpServer())
+        .delete(`${url}/00000000-0000-0000-0000-000000000001/document`)
+        .expect(HttpStatus.NOT_FOUND)
+        .expect((response) => {
+          expect(response.body).toEqual({
+            statusCode: HttpStatus.NOT_FOUND,
+            message:
+              'File with id 00000000-0000-0000-0000-000000000001 and type document not found',
+          })
+          expect(fileRepository.delete).not.toHaveBeenCalled()
+        })
+    })
+
+    it('still succeeds when deleting from storage fails', () => {
+      fileRepository.findOneBy.mockResolvedValueOnce(fileEntity)
+      storageService.delete.mockRejectedValueOnce(new Error('minio down'))
+
+      return request(app.getHttpServer())
+        .delete(`${url}/00000000-0000-0000-0000-000000000001/document`)
+        .expect(HttpStatus.OK)
+        .expect(() => {
+          expect(fileCacheService.delete).toHaveBeenCalledWith(
+            'document',
+            '00000000-0000-0000-0000-000000000001',
+          )
+        })
+    })
+
+    it('still succeeds when deleting the cache entry fails', () => {
+      fileRepository.findOneBy.mockResolvedValueOnce(fileEntity)
+      fileCacheService.delete.mockRejectedValueOnce(new Error('redis down'))
+
+      return request(app.getHttpServer())
+        .delete(`${url}/00000000-0000-0000-0000-000000000001/document`)
+        .expect(HttpStatus.OK)
+    })
+
+    it('rejects a malformed id before it ever reaches the database', () => {
+      return request(app.getHttpServer())
+        .delete(`${url}/not-a-uuid/document`)
+        .expect(HttpStatus.BAD_REQUEST)
+        .expect((response) => {
+          expect(response.body).toEqual({
+            error: 'Bad Request',
+            message: 'Validation failed (uuid is expected)',
+            statusCode: HttpStatus.BAD_REQUEST,
+          })
+          expect(fileRepository.findOneBy).not.toHaveBeenCalled()
         })
     })
   })
