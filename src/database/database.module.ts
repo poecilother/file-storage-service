@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { TypeOrmModule } from '@nestjs/typeorm'
+
 import { EnvVariable } from '../config/env/env-variable.constants'
+import entities from './entities'
 
 @Module({
   imports: [
@@ -17,6 +19,10 @@ import { EnvVariable } from '../config/env/env-variable.constants'
         ),
         database: configService.getOrThrow<string>(EnvVariable.POSTGRES_DB),
         autoLoadEntities: true,
+        migrations: ['dist/database/migrations/*.js'],
+        migrationsRun: true,
+
+        entities,
       }),
     }),
   ],

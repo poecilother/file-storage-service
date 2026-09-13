@@ -1,4 +1,5 @@
 import * as Joi from 'joi'
+
 import { EnvVariable, EnvVariableDefault } from './env-variable.constants'
 
 export const validationSchema = Joi.object({
@@ -25,5 +26,29 @@ export const validationSchema = Joi.object({
   ),
   [EnvVariable.POSTGRES_DB]: Joi.string().default(
     EnvVariableDefault[EnvVariable.POSTGRES_DB],
+  ),
+  [EnvVariable.FILE_MAX_SIZE]: Joi.number().default(
+    EnvVariableDefault[EnvVariable.FILE_MAX_SIZE],
+  ),
+  [EnvVariable.FILE_STORAGE_PATH]: Joi.string().default(
+    EnvVariableDefault[EnvVariable.FILE_STORAGE_PATH],
+  ),
+  [EnvVariable.FILE_ALLOWED_EXTENSIONS]: Joi.string().default(
+    EnvVariableDefault[EnvVariable.FILE_ALLOWED_EXTENSIONS],
+  ),
+  [EnvVariable.MINIO_HOST]: Joi.string().default(
+    EnvVariableDefault[EnvVariable.MINIO_HOST],
+  ),
+  [EnvVariable.MINIO_PORT]: Joi.number().default(
+    EnvVariableDefault[EnvVariable.MINIO_PORT],
+  ),
+  [EnvVariable.MINIO_USE_SSL]: Joi.boolean().default(
+    EnvVariableDefault[EnvVariable.MINIO_USE_SSL],
+  ),
+  [EnvVariable.MINIO_ACCESS_KEY]: Joi.string().default(
+    EnvVariableDefault[EnvVariable.MINIO_ACCESS_KEY],
+  ),
+  [EnvVariable.MINIO_SECRET_KEY]: Joi.string().default(
+    EnvVariableDefault[EnvVariable.MINIO_SECRET_KEY],
   ),
 })

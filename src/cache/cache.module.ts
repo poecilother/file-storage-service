@@ -1,25 +1,32 @@
-import { Module } from '@nestjs/common'
-import { CacheModule as NestCacheModule } from '@nestjs/cache-manager'
+import { Global, Logger, Module } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import KeyvRedis from '@keyv/redis'
-import { Keyv } from 'keyv'
-import { EnvVariable } from '../config/env/env-variable.constants'
+import { createClient } from '@redis/client'
 
+import { EnvVariable } from '../config/env/env-variable.constants'
+import { REDIS_CLIENT } from './cache.constants'
+
+@Global()
 @Module({
-  imports: [
-    NestCacheModule.registerAsync({
-      isGlobal: true,
+  providers: [
+    {
+      provide: REDIS_CLIENT,
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        stores: [
-          new Keyv({
-            store: new KeyvRedis(
-              `redis://${configService.getOrThrow<string>(EnvVariable.REDIS_HOST)}:${configService.getOrThrow<number>(EnvVariable.REDIS_PORT)}`,
-            ),
-          }),
-        ],
-      }),
-    }),
+      useFactory: async (configService: ConfigService) => {
+        const logger = new Logger('RedisClient')
+        const client = createClient({
+          url: `redis://${configService.getOrThrow<string>(EnvVariable.REDIS_HOST)}:${configService.getOrThrow<number>(EnvVariable.REDIS_PORT)}`,
+        })
+
+        client.on('error', (error: Error) =>
+          logger.error(`Redis client error: ${error.message}`),
+        )
+
+        await client.connect()
+
+        return client
+      },
+    },
   ],
+  exports: [REDIS_CLIENT],
 })
 export class CacheModule {}

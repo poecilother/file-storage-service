@@ -7,6 +7,14 @@ export enum EnvVariable {
   POSTGRES_USER = 'POSTGRES_USER',
   POSTGRES_PASSWORD = 'POSTGRES_PASSWORD',
   POSTGRES_DB = 'POSTGRES_DB',
+  FILE_MAX_SIZE = 'FILE_MAX_SIZE',
+  FILE_STORAGE_PATH = 'FILE_STORAGE_PATH',
+  FILE_ALLOWED_EXTENSIONS = 'FILE_ALLOWED_EXTENSIONS',
+  MINIO_HOST = 'MINIO_HOST',
+  MINIO_PORT = 'MINIO_PORT',
+  MINIO_USE_SSL = 'MINIO_USE_SSL',
+  MINIO_ACCESS_KEY = 'MINIO_ACCESS_KEY',
+  MINIO_SECRET_KEY = 'MINIO_SECRET_KEY',
 }
 
 export const EnvVariableDefault = {
@@ -18,4 +26,12 @@ export const EnvVariableDefault = {
   [EnvVariable.POSTGRES_USER]: 'postgres',
   [EnvVariable.POSTGRES_PASSWORD]: 'postgres',
   [EnvVariable.POSTGRES_DB]: 'file-storage-service',
+  [EnvVariable.FILE_MAX_SIZE]: 1 * 1024 * 1024, // 1MB
+  [EnvVariable.FILE_STORAGE_PATH]: './uploads',
+  [EnvVariable.FILE_ALLOWED_EXTENSIONS]: 'txt,pdf,png,jpg,jpeg',
+  [EnvVariable.MINIO_HOST]: 'localhost',
+  [EnvVariable.MINIO_PORT]: 9000,
+  [EnvVariable.MINIO_USE_SSL]: false,
+  [EnvVariable.MINIO_ACCESS_KEY]: 'minioadmin',
+  [EnvVariable.MINIO_SECRET_KEY]: 'minioadmin',
 }
