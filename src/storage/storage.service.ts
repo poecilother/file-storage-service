@@ -1,4 +1,4 @@
-import { createReadStream, createWriteStream } from 'node:fs'
+import { createReadStream, createWriteStream, WriteStream } from 'node:fs'
 import { access, mkdir, rm } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { Readable } from 'node:stream'
@@ -64,12 +64,8 @@ export class StorageService {
     )
 
     if (storage === FileStorage.HOT) {
-      const cacheWrite = createWriteStream(path)
-      cacheWrite.on('error', (error) =>
-        this.logger.warn(
-          `Failed to warm disk cache for ${id}: ${error.message}`,
-        ),
-      )
+      const cacheWrite = await this.saveToDiskCache(id, path)
+
       stream.pipe(cacheWrite)
     }
 
@@ -113,5 +109,18 @@ export class StorageService {
     } catch {
       return false
     }
+  }
+
+  private async saveToDiskCache(
+    id: string,
+    path: string,
+  ): Promise<WriteStream> {
+    const cacheWrite = createWriteStream(path)
+
+    cacheWrite.on('error', (error) =>
+      this.logger.warn(`Failed to warm disk cache for ${id}: ${error.message}`),
+    )
+
+    return cacheWrite
   }
 }

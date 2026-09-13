@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream'
+
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common'
 import { Test, TestingModule } from '@nestjs/testing'
 import { getRepositoryToken } from '@nestjs/typeorm'
@@ -17,9 +19,13 @@ describe('FileStorageController', () => {
   let app: INestApplication<App>
   let fileStorageService: FileStorageService
   let fileCacheService: { getStorage: jest.Mock; getIdsByType: jest.Mock }
+  let storageService: { download: jest.Mock }
+  let fileRepository: { findOneBy: jest.Mock }
 
   beforeEach(async () => {
     fileCacheService = { getStorage: jest.fn(), getIdsByType: jest.fn() }
+    storageService = { download: jest.fn() }
+    fileRepository = { findOneBy: jest.fn() }
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [ConfigModule],
@@ -32,6 +38,7 @@ describe('FileStorageController', () => {
           useValue: {
             upload: jest.fn(() => Promise.resolve()),
             delete: jest.fn(() => Promise.resolve()),
+            ...storageService,
           },
         },
         {
@@ -47,6 +54,7 @@ describe('FileStorageController', () => {
             create: jest.fn((entity) => entity),
             save: jest.fn((entity) => Promise.resolve(entity)),
             delete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
+            ...fileRepository,
           },
         },
       ],
@@ -175,11 +183,73 @@ describe('FileStorageController', () => {
   })
 
   describe('GET /file-storage/:id/:type', () => {
-    it('returns the id, type, and storage when the file is cached', () => {
-      fileCacheService.getStorage.mockResolvedValueOnce('hot')
+    it('streams the file content with the correct headers', () => {
+      fileRepository.findOneBy.mockResolvedValueOnce({
+        id: 'abc-123',
+        type: 'document',
+        originalName: 'report.txt',
+        mimetype: 'text/plain',
+        storage: 'hot',
+      })
+      storageService.download.mockResolvedValueOnce(
+        Readable.from(Buffer.from('file content')),
+      )
 
       return request(app.getHttpServer())
         .get(`${url}/abc-123/document`)
+        .expect(HttpStatus.OK)
+        .expect('Content-Type', 'text/plain')
+        .expect(
+          'Content-Disposition',
+          `attachment; filename*=UTF-8''report.txt`,
+        )
+        .expect((response) => {
+          expect(response.text).toBe('file content')
+        })
+    })
+
+    it('serves the file even when the cache has nothing for it', () => {
+      fileRepository.findOneBy.mockResolvedValueOnce({
+        id: 'abc-123',
+        type: 'document',
+        originalName: 'report.txt',
+        mimetype: 'text/plain',
+        storage: 'hot',
+      })
+      storageService.download.mockResolvedValueOnce(
+        Readable.from(Buffer.from('file content')),
+      )
+
+      return request(app.getHttpServer())
+        .get(`${url}/abc-123/document`)
+        .expect(HttpStatus.OK)
+        .expect((response) => {
+          expect(response.text).toBe('file content')
+          expect(fileCacheService.getStorage).not.toHaveBeenCalled()
+        })
+    })
+
+    it('returns 404 when the file does not exist', () => {
+      fileRepository.findOneBy.mockResolvedValueOnce(null)
+
+      return request(app.getHttpServer())
+        .get(`${url}/abc-123/document`)
+        .expect(HttpStatus.NOT_FOUND)
+        .expect((response) => {
+          expect(response.body).toEqual({
+            statusCode: HttpStatus.NOT_FOUND,
+            message: 'File with id abc-123 and type document not found',
+          })
+        })
+    })
+  })
+
+  describe('GET /file-storage/storage/:id/:type', () => {
+    it('returns the id, type, and storage from the cache', () => {
+      fileCacheService.getStorage.mockResolvedValueOnce('hot')
+
+      return request(app.getHttpServer())
+        .get(`${url}/storage/abc-123/document`)
         .expect(HttpStatus.OK)
         .expect((response) => {
           expect(response.body).toEqual({
@@ -187,14 +257,36 @@ describe('FileStorageController', () => {
             type: 'document',
             storage: 'hot',
           })
+          expect(fileRepository.findOneBy).not.toHaveBeenCalled()
         })
     })
 
-    it('returns 404 when the file is not cached', () => {
+    it('falls back to the database on a cache miss', () => {
       fileCacheService.getStorage.mockResolvedValueOnce(null)
+      fileRepository.findOneBy.mockResolvedValueOnce({
+        id: 'abc-123',
+        type: 'document',
+        storage: 'archive',
+      })
 
       return request(app.getHttpServer())
-        .get(`${url}/abc-123/document`)
+        .get(`${url}/storage/abc-123/document`)
+        .expect(HttpStatus.OK)
+        .expect((response) => {
+          expect(response.body).toEqual({
+            id: 'abc-123',
+            type: 'document',
+            storage: 'archive',
+          })
+        })
+    })
+
+    it('returns 404 when neither cached nor in the database', () => {
+      fileCacheService.getStorage.mockResolvedValueOnce(null)
+      fileRepository.findOneBy.mockResolvedValueOnce(null)
+
+      return request(app.getHttpServer())
+        .get(`${url}/storage/abc-123/document`)
         .expect(HttpStatus.NOT_FOUND)
         .expect((response) => {
           expect(response.body).toEqual({

@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Query,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common'
@@ -24,6 +25,22 @@ export class FileStorageController {
   constructor(private fileStorageService: FileStorageService) {}
 
   @Get('/:id/:type')
+  async getFile(
+    @Param('id') id: string,
+    @Param('type') type: string,
+  ): Promise<StreamableFile> {
+    const { stream, fileEntity } = await this.fileStorageService.getFile(
+      id,
+      type,
+    )
+
+    return new StreamableFile(stream, {
+      type: fileEntity.mimetype,
+      disposition: `attachment; filename*=UTF-8''${encodeURIComponent(fileEntity.originalName)}`,
+    })
+  }
+
+  @Get('/storage/:id/:type')
   async getFileStorage(
     @Param('id') id: string,
     @Param('type') type: string,

@@ -21,17 +21,55 @@ export class FileStorageService {
     private readonly fileRepository: Repository<FileEntity>,
   ) {}
 
-  async getFileStorage(id: string, type: string): Promise<FileStorageDto> {
-    const storage = await this.fileCacheService.getStorage(type, id)
+  async getFile(
+    id: string,
+    type: string,
+  ): Promise<{ stream: Readable; fileEntity: FileEntity }> {
+    const fileEntity = await this.fileRepository.findOneBy({ id, type })
 
-    if (!storage) {
+    if (!fileEntity) {
       throw new HttpException(
         `File with id ${id} and type ${type} not found`,
         HttpStatus.NOT_FOUND,
       )
     }
 
-    return { id, type, storage }
+    const stream = await this.storageService.download(
+      id,
+      fileEntity.storage,
+      fileEntity.originalName,
+    )
+
+    return { stream, fileEntity }
+  }
+
+  async getFileStorage(id: string, type: string): Promise<FileStorageDto> {
+    const cachedStorage = await this.fileCacheService.getStorage(type, id)
+
+    if (cachedStorage) {
+      return { id, type, storage: cachedStorage }
+    }
+
+    const fileEntity = await this.fileRepository.findOneBy({ id, type })
+
+    if (!fileEntity) {
+      throw new HttpException(
+        `File with id ${id} and type ${type} not found`,
+        HttpStatus.NOT_FOUND,
+      )
+    }
+
+    await this.fileCacheService
+      .set({
+        id: fileEntity.id,
+        type: fileEntity.type,
+        storage: fileEntity.storage,
+      })
+      .catch((error: Error) => {
+        this.logger.warn(`Failed to warm cache for ${id}: ${error.message}`)
+      })
+
+    return { id, type, storage: fileEntity.storage }
   }
 
   async getFileListByType(type: string): Promise<string[]> {

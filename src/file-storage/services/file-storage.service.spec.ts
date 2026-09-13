@@ -11,7 +11,11 @@ import { FileStorageService } from './file-storage.service'
 
 describe('FileStorageService', () => {
   let service: FileStorageService
-  let storageService: { upload: jest.Mock; delete: jest.Mock }
+  let storageService: {
+    upload: jest.Mock
+    delete: jest.Mock
+    download: jest.Mock
+  }
   let fileCacheService: {
     set: jest.Mock
     getStorage: jest.Mock
@@ -21,6 +25,7 @@ describe('FileStorageService', () => {
     create: jest.Mock
     save: jest.Mock
     delete: jest.Mock
+    findOneBy: jest.Mock
   }
 
   const file: Express.Multer.File = {
@@ -40,6 +45,7 @@ describe('FileStorageService', () => {
     storageService = {
       upload: jest.fn(),
       delete: jest.fn(() => Promise.resolve()),
+      download: jest.fn(),
     }
     fileCacheService = {
       set: jest.fn(() => Promise.resolve()),
@@ -50,6 +56,7 @@ describe('FileStorageService', () => {
       create: jest.fn((entity) => entity),
       save: jest.fn((entity) => Promise.resolve(entity)),
       delete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
+      findOneBy: jest.fn(),
     }
 
     const module: TestingModule = await Test.createTestingModule({
@@ -145,7 +152,7 @@ describe('FileStorageService', () => {
   })
 
   describe('getFileStorage', () => {
-    it('returns the id, type, and storage when the file is cached', async () => {
+    it('returns the id, type, and storage from the cache without querying the database', async () => {
       fileCacheService.getStorage.mockResolvedValueOnce(FileStorage.HOT)
 
       const result = await service.getFileStorage('abc-123', 'document')
@@ -154,6 +161,7 @@ describe('FileStorageService', () => {
         'document',
         'abc-123',
       )
+      expect(fileRepository.findOneBy).not.toHaveBeenCalled()
       expect(result).toEqual({
         id: 'abc-123',
         type: 'document',
@@ -161,8 +169,53 @@ describe('FileStorageService', () => {
       })
     })
 
-    it('throws a not-found when the file is not cached', async () => {
+    it('falls back to the database and repopulates the cache on a cache miss', async () => {
       fileCacheService.getStorage.mockResolvedValueOnce(null)
+      fileRepository.findOneBy.mockResolvedValueOnce({
+        id: 'abc-123',
+        type: 'document',
+        storage: FileStorage.ARCHIVE,
+      })
+
+      const result = await service.getFileStorage('abc-123', 'document')
+
+      expect(fileRepository.findOneBy).toHaveBeenCalledWith({
+        id: 'abc-123',
+        type: 'document',
+      })
+      expect(fileCacheService.set).toHaveBeenCalledWith({
+        id: 'abc-123',
+        type: 'document',
+        storage: FileStorage.ARCHIVE,
+      })
+      expect(result).toEqual({
+        id: 'abc-123',
+        type: 'document',
+        storage: FileStorage.ARCHIVE,
+      })
+    })
+
+    it('still returns the result when repopulating the cache fails', async () => {
+      fileCacheService.getStorage.mockResolvedValueOnce(null)
+      fileRepository.findOneBy.mockResolvedValueOnce({
+        id: 'abc-123',
+        type: 'document',
+        storage: FileStorage.HOT,
+      })
+      fileCacheService.set.mockRejectedValueOnce(new Error('redis down'))
+
+      const result = await service.getFileStorage('abc-123', 'document')
+
+      expect(result).toEqual({
+        id: 'abc-123',
+        type: 'document',
+        storage: FileStorage.HOT,
+      })
+    })
+
+    it('throws a not-found when neither cached nor in the database', async () => {
+      fileCacheService.getStorage.mockResolvedValueOnce(null)
+      fileRepository.findOneBy.mockResolvedValueOnce(null)
 
       await expect(
         service.getFileStorage('abc-123', 'document'),
@@ -175,6 +228,42 @@ describe('FileStorageService', () => {
       } catch (error) {
         expect((error as HttpException).getStatus()).toBe(HttpStatus.NOT_FOUND)
       }
+    })
+  })
+
+  describe('getFile', () => {
+    it('returns the stream and entity using the storage tier from the database', async () => {
+      const fileEntity = {
+        id: 'abc-123',
+        type: 'document',
+        originalName: 'report.txt',
+        storage: FileStorage.ARCHIVE,
+      }
+      fileRepository.findOneBy.mockResolvedValueOnce(fileEntity)
+      const stream = Readable.from(Buffer.from('content'))
+      storageService.download.mockResolvedValueOnce(stream)
+
+      const result = await service.getFile('abc-123', 'document')
+
+      expect(fileRepository.findOneBy).toHaveBeenCalledWith({
+        id: 'abc-123',
+        type: 'document',
+      })
+      expect(storageService.download).toHaveBeenCalledWith(
+        'abc-123',
+        FileStorage.ARCHIVE,
+        'report.txt',
+      )
+      expect(result).toEqual({ stream, fileEntity })
+    })
+
+    it('throws a not-found when the file does not exist, regardless of the cache', async () => {
+      fileRepository.findOneBy.mockResolvedValueOnce(null)
+
+      await expect(service.getFile('abc-123', 'document')).rejects.toThrow(
+        HttpException,
+      )
+      expect(fileCacheService.getStorage).not.toHaveBeenCalled()
     })
   })
 
