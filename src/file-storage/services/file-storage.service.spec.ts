@@ -28,6 +28,7 @@ describe('FileStorageService', () => {
     delete: jest.Mock
     softDelete: jest.Mock
     findOneBy: jest.Mock
+    find: jest.Mock
   }
 
   const file: Express.Multer.File = {
@@ -61,6 +62,7 @@ describe('FileStorageService', () => {
       delete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
       softDelete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
       findOneBy: jest.fn(),
+      find: jest.fn(() => Promise.resolve([])),
     }
 
     const module: TestingModule = await Test.createTestingModule({
@@ -73,6 +75,57 @@ describe('FileStorageService', () => {
     }).compile()
 
     service = module.get<FileStorageService>(FileStorageService)
+  })
+
+  describe('onModuleInit', () => {
+    it('warms the cache with every file found in the database', async () => {
+      fileRepository.find.mockResolvedValueOnce([
+        { id: 'id-1', type: 'document', storage: FileStorage.HOT },
+        { id: 'id-2', type: 'image', storage: FileStorage.ARCHIVE },
+      ])
+
+      await service.onModuleInit()
+
+      expect(fileCacheService.set).toHaveBeenCalledWith({
+        id: 'id-1',
+        type: 'document',
+        storage: FileStorage.HOT,
+      })
+      expect(fileCacheService.set).toHaveBeenCalledWith({
+        id: 'id-2',
+        type: 'image',
+        storage: FileStorage.ARCHIVE,
+      })
+    })
+
+    it('does not crash startup when the database is unreachable', async () => {
+      fileRepository.find.mockRejectedValueOnce(new Error('postgres down'))
+
+      await expect(service.onModuleInit()).resolves.toBeUndefined()
+
+      expect(fileCacheService.set).not.toHaveBeenCalled()
+    })
+
+    it('keeps warming the remaining files when one fails', async () => {
+      fileRepository.find.mockResolvedValueOnce([
+        { id: 'id-1', type: 'document', storage: FileStorage.HOT },
+        { id: 'id-2', type: 'document', storage: FileStorage.HOT },
+        { id: 'id-3', type: 'document', storage: FileStorage.HOT },
+      ])
+      fileCacheService.set
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('redis down'))
+        .mockResolvedValueOnce(undefined)
+
+      await expect(service.onModuleInit()).resolves.toBeUndefined()
+
+      expect(fileCacheService.set).toHaveBeenCalledTimes(3)
+      expect(fileCacheService.set).toHaveBeenNthCalledWith(3, {
+        id: 'id-3',
+        type: 'document',
+        storage: FileStorage.HOT,
+      })
+    })
   })
 
   describe('saveFile', () => {

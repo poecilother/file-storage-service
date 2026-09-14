@@ -28,6 +28,7 @@ describe('FileStorageController', () => {
     findOneBy: jest.Mock
     delete: jest.Mock
     softDelete: jest.Mock
+    find: jest.Mock
   }
 
   beforeEach(async () => {
@@ -44,6 +45,7 @@ describe('FileStorageController', () => {
       findOneBy: jest.fn(),
       delete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
       softDelete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
+      find: jest.fn(() => Promise.resolve([])),
     }
 
     const moduleFixture: TestingModule = await Test.createTestingModule({

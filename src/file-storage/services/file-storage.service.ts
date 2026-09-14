@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common'
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common'
 import { InjectRepository } from '@nestjs/typeorm'
 import { Repository } from 'typeorm'
 
@@ -11,7 +17,7 @@ import { FileStorageDto } from '../dto/file-storage.dto'
 import { FileCacheService } from './file-cache.service'
 
 @Injectable()
-export class FileStorageService {
+export class FileStorageService implements OnModuleInit {
   private readonly logger = new Logger(FileStorageService.name)
 
   constructor(
@@ -20,6 +26,10 @@ export class FileStorageService {
     @InjectRepository(FileEntity)
     private readonly fileRepository: Repository<FileEntity>,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.warmCacheOnStartup()
+  }
 
   async getFile(
     id: string,
@@ -158,5 +168,43 @@ export class FileStorageService {
       `File with id ${id} and type ${type} not found`,
       HttpStatus.NOT_FOUND,
     )
+  }
+
+  private async warmCacheOnStartup(): Promise<void> {
+    let files: FileEntity[]
+
+    try {
+      files = await this.fileRepository.find()
+    } catch (error) {
+      this.logger.warn(
+        `Failed to warm cache on startup: ${(error as Error).message}`,
+      )
+      return
+    }
+
+    let failedCount = 0
+
+    for (const file of files) {
+      try {
+        await this.fileCacheService.set({
+          id: file.id,
+          type: file.type,
+          storage: file.storage,
+        })
+      } catch (error) {
+        failedCount++
+        this.logger.warn(
+          `Failed to warm cache for ${file.id}: ${(error as Error).message}`,
+        )
+      }
+    }
+
+    if (failedCount > 0) {
+      this.logger.warn(
+        `Warmed cache with ${files.length - failedCount} of ${files.length} files on startup`,
+      )
+    } else {
+      this.logger.log(`Warmed cache with ${files.length} files on startup`)
+    }
   }
 }
