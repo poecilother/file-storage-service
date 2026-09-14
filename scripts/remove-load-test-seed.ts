@@ -8,11 +8,18 @@ import dataSource from '../src/database/data-source'
 import { FileEntity } from '../src/database/entities/file.entity'
 import { BUCKET_BY_STORAGE } from '../src/storage/storage.constants'
 import {
+  CATEGORIES,
   CATEGORY_PREFIX,
   DB_BATCH_SIZE,
   MINIO_CONCURRENCY,
 } from './load-test.config'
-import { createMinioClient, runWithConcurrency } from './load-test-shared'
+import {
+  buildTypeKey,
+  createMinioClient,
+  createRedisClient,
+  deleteRedisKeysMatching,
+  runWithConcurrency,
+} from './load-test-shared'
 
 function buildKey(id: string, originalName: string): string {
   return `${id}${extname(originalName)}`
@@ -22,6 +29,7 @@ async function main(): Promise<void> {
   await dataSource.initialize()
 
   const minioClient = createMinioClient()
+  const redisClient = await createRedisClient()
   const fileRepository = dataSource.getRepository(FileEntity)
 
   let totalDeleted = 0
@@ -53,13 +61,24 @@ async function main(): Promise<void> {
     console.log(`Deleted ${totalDeleted} seeded test files so far...`)
   }
 
+  let redisKeysDeleted = 0
+
+  for (const category of CATEGORIES) {
+    redisKeysDeleted += await deleteRedisKeysMatching(
+      redisClient,
+      `file:${category}:*`,
+    )
+    await redisClient.del(buildTypeKey(category)).catch(() => undefined)
+  }
+
   const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1)
 
   console.log(
-    `Done. Deleted ${totalDeleted} seeded test files in ${elapsedSeconds}s.`,
+    `Done. Deleted ${totalDeleted} seeded test files and ${redisKeysDeleted} stray Redis keys in ${elapsedSeconds}s.`,
   )
 
   await dataSource.destroy()
+  await redisClient.quit()
 }
 
 main().catch((error: Error) => {

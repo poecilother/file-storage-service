@@ -2,6 +2,7 @@ import 'reflect-metadata'
 
 import { randomBytes, randomUUID } from 'node:crypto'
 
+import type { RedisClientType } from '@redis/client'
 import { Client } from 'minio'
 
 import dataSource from '../src/database/data-source'
@@ -17,7 +18,13 @@ import {
   MIN_SIZE_BYTES,
   MINIO_CONCURRENCY,
 } from './load-test.config'
-import { createMinioClient, runWithConcurrency } from './load-test-shared'
+import {
+  buildStorageKey,
+  buildTypeKey,
+  createMinioClient,
+  createRedisClient,
+  runWithConcurrency,
+} from './load-test-shared'
 
 function randomSize(): number {
   return (
@@ -45,13 +52,17 @@ async function ensureHotBucketExists(minioClient: Client): Promise<void> {
   }
 }
 
-// Only Postgres + MinIO are seeded; the local disk cache is a lazily
-// populated read-through optimization (see StorageService.download), so
-// leaving it empty here is consistent with files that were uploaded but
-// never yet downloaded.
+// Postgres, MinIO and Redis are all seeded, matching what a real upload
+// does (see FileStorageService.saveFile), so list/storage-lookup work
+// immediately without needing an app restart to trigger cache warming.
+// The local disk cache is left alone though: it's a lazily populated
+// read-through optimization (see StorageService.download), so leaving it
+// empty here is consistent with files that were uploaded but never yet
+// downloaded.
 async function seedCategory(
   category: string,
   minioClient: Client,
+  redisClient: RedisClientType,
   contentPool: Buffer,
 ): Promise<void> {
   const bucket = BUCKET_BY_STORAGE[FileStorage.HOT]
@@ -87,7 +98,17 @@ async function seedCategory(
         content,
         entity.size,
       )
+
+      await redisClient.set(
+        buildStorageKey(entity.type, entity.id),
+        entity.storage,
+      )
     })
+
+    await redisClient.sAdd(
+      buildTypeKey(category),
+      batch.map((entity) => entity.id),
+    )
 
     await dataSource.getRepository(FileEntity).insert(batch)
 
@@ -100,13 +121,14 @@ async function main(): Promise<void> {
   await dataSource.initialize()
 
   const minioClient = createMinioClient()
+  const redisClient = await createRedisClient()
   await ensureHotBucketExists(minioClient)
 
   const contentPool = randomBytes(CONTENT_POOL_SIZE)
   const startedAt = Date.now()
 
   for (const category of CATEGORIES) {
-    await seedCategory(category, minioClient, contentPool)
+    await seedCategory(category, minioClient, redisClient, contentPool)
   }
 
   const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1)
@@ -117,6 +139,7 @@ async function main(): Promise<void> {
   )
 
   await dataSource.destroy()
+  await redisClient.quit()
 }
 
 main().catch((error: Error) => {
