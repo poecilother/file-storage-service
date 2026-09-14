@@ -156,5 +156,21 @@ describe('FileArchiveService', () => {
         storage: FileStorage.ARCHIVE,
       })
     })
+
+    it('skips a run started while a previous run is still in progress', async () => {
+      const firstRun = service.archiveOldHotFiles()
+      const secondRun = service.archiveOldHotFiles()
+
+      await Promise.all([firstRun, secondRun])
+
+      expect(fileRepository.find).toHaveBeenCalledTimes(1)
+    })
+
+    it('allows a new run once the previous run has finished', async () => {
+      await service.archiveOldHotFiles()
+      await service.archiveOldHotFiles()
+
+      expect(fileRepository.find).toHaveBeenCalledTimes(2)
+    })
   })
 })

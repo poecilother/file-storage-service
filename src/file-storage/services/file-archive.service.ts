@@ -15,6 +15,7 @@ const ARCHIVE_CRON_JOB_NAME = 'archive-old-hot-files'
 @Injectable()
 export class FileArchiveService implements OnModuleInit {
   private readonly logger = new Logger(FileArchiveService.name)
+  private isRunning = false
 
   constructor(
     private readonly configService: ConfigService,
@@ -30,27 +31,41 @@ export class FileArchiveService implements OnModuleInit {
   }
 
   async archiveOldHotFiles(): Promise<void> {
-    const archiveAfterMs = this.configService.getOrThrow<number>(
-      EnvVariable.FILE_ARCHIVE_AFTER_MS,
-    )
-    const cutoff = new Date(Date.now() - archiveAfterMs)
+    if (this.isRunning) {
+      this.logger.warn(
+        'Skipping run: previous archive run is still in progress',
+      )
 
-    const files = await this.fileRepository.find({
-      where: { storage: FileStorage.HOT, createdAt: LessThan(cutoff) },
-    })
-
-    let archivedCount = 0
-
-    for (const file of files) {
-      const archived = await this.archiveFile(file)
-
-      if (archived) {
-        archivedCount++
-      }
+      return
     }
 
-    if (files.length > 0) {
-      this.logger.log(`Archived ${archivedCount} of ${files.length} files`)
+    this.isRunning = true
+
+    try {
+      const archiveAfterMs = this.configService.getOrThrow<number>(
+        EnvVariable.FILE_ARCHIVE_AFTER_MS,
+      )
+      const cutoff = new Date(Date.now() - archiveAfterMs)
+
+      const files = await this.fileRepository.find({
+        where: { storage: FileStorage.HOT, createdAt: LessThan(cutoff) },
+      })
+
+      let archivedCount = 0
+
+      for (const file of files) {
+        const archived = await this.archiveFile(file)
+
+        if (archived) {
+          archivedCount++
+        }
+      }
+
+      if (files.length > 0) {
+        this.logger.log(`Archived ${archivedCount} of ${files.length} files`)
+      }
+    } finally {
+      this.isRunning = false
     }
   }
 

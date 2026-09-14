@@ -23,7 +23,9 @@
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:generate": "npm run typeorm -- migration:generate -d src/database/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run -d src/database/data-source.ts",
-    "migration:revert": "npm run typeorm -- migration:revert -d src/database/data-source.ts"
+    "migration:revert": "npm run typeorm -- migration:revert -d src/database/data-source.ts",
+    "seed:load-test": "ts-node scripts/seed-load-test.ts",
+    "seed:load-test:clean": "ts-node scripts/remove-load-test-seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

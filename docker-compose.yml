@@ -20,10 +20,12 @@ services:
       MINIO_USE_SSL: false
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
+    env_file:
+      - path: ./.env
+        required: false
     volumes:
       - ./src:/app/src
       - ./test:/app/test
-      - ./.env:/app/.env:ro
     depends_on:
       - redis
       - postgres
