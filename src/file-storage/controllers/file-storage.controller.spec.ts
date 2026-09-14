@@ -83,6 +83,7 @@ describe('FileStorageController', () => {
       moduleFixture.get<FileStorageService>(FileStorageService)
 
     app = moduleFixture.createNestApplication()
+    app.useLogger(false)
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
 
     await app.init()

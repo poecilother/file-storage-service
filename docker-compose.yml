@@ -23,6 +23,7 @@ services:
     volumes:
       - ./src:/app/src
       - ./test:/app/test
+      - ./.env:/app/.env:ro
     depends_on:
       - redis
       - postgres

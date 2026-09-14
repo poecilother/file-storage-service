@@ -10,24 +10,26 @@ $ npm install
 
 ### Configuration
 
-| Variable name             | Required | Type      | Default value          | Description                                              |
-| ------------------------- | -------- | --------- | ---------------------- | -------------------------------------------------------- |
-| `PORT`                    | **Yes**  | `number`  | `3000`                 | Port on which HTTP server listen on                      |
-| `REDIS_HOST`              | **Yes**  | `string`  | `localhost`            | Hostname of the Redis instance                           |
-| `REDIS_PORT`              | **Yes**  | `number`  | `6379`                 | Port of the Redis instance                               |
-| `POSTGRES_HOST`           | **Yes**  | `string`  | `localhost`            | Hostname of the Postgres instance                        |
-| `POSTGRES_PORT`           | **Yes**  | `number`  | `5432`                 | Port of the Postgres instance                            |
-| `POSTGRES_USER`           | **Yes**  | `string`  | `postgres`             | Postgres user                                            |
-| `POSTGRES_PASSWORD`       | **Yes**  | `string`  | `postgres`             | Postgres password                                        |
-| `POSTGRES_DB`             | **Yes**  | `string`  | `file-storage-service` | Postgres database name                                   |
-| `FILE_MAX_SIZE`           | **Yes**  | `number`  | `1048576` (1MB)        | Maximum allowed uploaded file size, in bytes             |
-| `FILE_STORAGE_PATH`       | **Yes**  | `string`  | `./uploads`            | Local disk cache directory for hot files                 |
-| `FILE_ALLOWED_EXTENSIONS` | **Yes**  | `string`  | `txt,pdf,png,jpg,jpeg` | Comma-separated list of allowed file extensions (no dot) |
-| `MINIO_HOST`              | **Yes**  | `string`  | `localhost`            | Hostname of the MinIO instance                           |
-| `MINIO_PORT`              | **Yes**  | `number`  | `9000`                 | Port of the MinIO instance                               |
-| `MINIO_USE_SSL`           | **Yes**  | `boolean` | `false`                | Whether to connect to MinIO over TLS                     |
-| `MINIO_ACCESS_KEY`        | **Yes**  | `string`  | `minioadmin`           | MinIO access key                                         |
-| `MINIO_SECRET_KEY`        | **Yes**  | `string`  | `minioadmin`           | MinIO secret key                                         |
+| Variable name             | Required | Type      | Default value          | Description                                                                |
+| ------------------------- | -------- | --------- | ---------------------- | -------------------------------------------------------------------------- |
+| `PORT`                    | **Yes**  | `number`  | `3000`                 | Port on which HTTP server listen on                                        |
+| `REDIS_HOST`              | **Yes**  | `string`  | `localhost`            | Hostname of the Redis instance                                             |
+| `REDIS_PORT`              | **Yes**  | `number`  | `6379`                 | Port of the Redis instance                                                 |
+| `POSTGRES_HOST`           | **Yes**  | `string`  | `localhost`            | Hostname of the Postgres instance                                          |
+| `POSTGRES_PORT`           | **Yes**  | `number`  | `5432`                 | Port of the Postgres instance                                              |
+| `POSTGRES_USER`           | **Yes**  | `string`  | `postgres`             | Postgres user                                                              |
+| `POSTGRES_PASSWORD`       | **Yes**  | `string`  | `postgres`             | Postgres password                                                          |
+| `POSTGRES_DB`             | **Yes**  | `string`  | `file-storage-service` | Postgres database name                                                     |
+| `FILE_MAX_SIZE`           | **Yes**  | `number`  | `1048576` (1MB)        | Maximum allowed uploaded file size, in bytes                               |
+| `FILE_STORAGE_PATH`       | **Yes**  | `string`  | `./uploads`            | Local disk cache directory for hot files                                   |
+| `FILE_ALLOWED_EXTENSIONS` | **Yes**  | `string`  | `txt,pdf,png,jpg,jpeg` | Comma-separated list of allowed file extensions (no dot)                   |
+| `FILE_ARCHIVE_AFTER_MS`   | **Yes**  | `number`  | `2592000000` (30 days) | How long a file stays in hot storage before being moved to archive storage |
+| `FILE_ARCHIVE_CRON`       | **Yes**  | `string`  | `0 * * * *` (hourly)   | Cron expression controlling how often the hot-to-archive job runs          |
+| `MINIO_HOST`              | **Yes**  | `string`  | `localhost`            | Hostname of the MinIO instance                                             |
+| `MINIO_PORT`              | **Yes**  | `number`  | `9000`                 | Port of the MinIO instance                                                 |
+| `MINIO_USE_SSL`           | **Yes**  | `boolean` | `false`                | Whether to connect to MinIO over TLS                                       |
+| `MINIO_ACCESS_KEY`        | **Yes**  | `string`  | `minioadmin`           | MinIO access key                                                           |
+| `MINIO_SECRET_KEY`        | **Yes**  | `string`  | `minioadmin`           | MinIO secret key                                                           |
 
 ### Redis
 

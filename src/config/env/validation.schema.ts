@@ -36,6 +36,12 @@ export const validationSchema = Joi.object({
   [EnvVariable.FILE_ALLOWED_EXTENSIONS]: Joi.string().default(
     EnvVariableDefault[EnvVariable.FILE_ALLOWED_EXTENSIONS],
   ),
+  [EnvVariable.FILE_ARCHIVE_AFTER_MS]: Joi.number().default(
+    EnvVariableDefault[EnvVariable.FILE_ARCHIVE_AFTER_MS],
+  ),
+  [EnvVariable.FILE_ARCHIVE_CRON]: Joi.string().default(
+    EnvVariableDefault[EnvVariable.FILE_ARCHIVE_CRON],
+  ),
   [EnvVariable.MINIO_HOST]: Joi.string().default(
     EnvVariableDefault[EnvVariable.MINIO_HOST],
   ),

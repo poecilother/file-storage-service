@@ -72,6 +72,21 @@ export class StorageService {
     return stream
   }
 
+  async moveToArchive(id: string, originalName: string): Promise<void> {
+    const key = this.buildKey(id, originalName)
+
+    await this.minioClient.copyObject(
+      BUCKET_BY_STORAGE[FileStorage.ARCHIVE],
+      key,
+      `/${BUCKET_BY_STORAGE[FileStorage.HOT]}/${key}`,
+    )
+
+    await this.minioClient.removeObject(BUCKET_BY_STORAGE[FileStorage.HOT], key)
+
+    const path = await this.diskCachePath(key)
+    await rm(path, { force: true })
+  }
+
   async delete(
     id: string,
     storage: FileStorage,

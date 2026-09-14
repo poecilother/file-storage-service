@@ -10,6 +10,8 @@ export enum EnvVariable {
   FILE_MAX_SIZE = 'FILE_MAX_SIZE',
   FILE_STORAGE_PATH = 'FILE_STORAGE_PATH',
   FILE_ALLOWED_EXTENSIONS = 'FILE_ALLOWED_EXTENSIONS',
+  FILE_ARCHIVE_AFTER_MS = 'FILE_ARCHIVE_AFTER_MS',
+  FILE_ARCHIVE_CRON = 'FILE_ARCHIVE_CRON',
   MINIO_HOST = 'MINIO_HOST',
   MINIO_PORT = 'MINIO_PORT',
   MINIO_USE_SSL = 'MINIO_USE_SSL',
@@ -29,6 +31,8 @@ export const EnvVariableDefault = {
   [EnvVariable.FILE_MAX_SIZE]: 1 * 1024 * 1024, // 1MB
   [EnvVariable.FILE_STORAGE_PATH]: './uploads',
   [EnvVariable.FILE_ALLOWED_EXTENSIONS]: 'txt,pdf,png,jpg,jpeg',
+  [EnvVariable.FILE_ARCHIVE_AFTER_MS]: 30 * 24 * 60 * 60 * 1000, // 30 days
+  [EnvVariable.FILE_ARCHIVE_CRON]: '0 * * * *', // every hour
   [EnvVariable.MINIO_HOST]: 'localhost',
   [EnvVariable.MINIO_PORT]: 9000,
   [EnvVariable.MINIO_USE_SSL]: false,
