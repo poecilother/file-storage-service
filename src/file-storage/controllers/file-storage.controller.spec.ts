@@ -24,7 +24,11 @@ describe('FileStorageController', () => {
     delete: jest.Mock
   }
   let storageService: { download: jest.Mock; delete: jest.Mock }
-  let fileRepository: { findOneBy: jest.Mock; delete: jest.Mock }
+  let fileRepository: {
+    findOneBy: jest.Mock
+    delete: jest.Mock
+    softDelete: jest.Mock
+  }
 
   beforeEach(async () => {
     fileCacheService = {
@@ -39,6 +43,7 @@ describe('FileStorageController', () => {
     fileRepository = {
       findOneBy: jest.fn(),
       delete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
+      softDelete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
     }
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -355,7 +360,7 @@ describe('FileStorageController', () => {
         .delete(`${url}/00000000-0000-0000-0000-000000000001/document`)
         .expect(HttpStatus.OK)
         .expect(() => {
-          expect(fileRepository.delete).toHaveBeenCalledWith(
+          expect(fileRepository.softDelete).toHaveBeenCalledWith(
             '00000000-0000-0000-0000-000000000001',
           )
           expect(storageService.delete).toHaveBeenCalledWith(
@@ -382,7 +387,7 @@ describe('FileStorageController', () => {
             message:
               'File with id 00000000-0000-0000-0000-000000000001 and type document not found',
           })
-          expect(fileRepository.delete).not.toHaveBeenCalled()
+          expect(fileRepository.softDelete).not.toHaveBeenCalled()
         })
     })
 

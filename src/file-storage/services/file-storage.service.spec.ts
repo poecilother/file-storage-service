@@ -26,6 +26,7 @@ describe('FileStorageService', () => {
     create: jest.Mock
     save: jest.Mock
     delete: jest.Mock
+    softDelete: jest.Mock
     findOneBy: jest.Mock
   }
 
@@ -58,6 +59,7 @@ describe('FileStorageService', () => {
       create: jest.fn((entity) => entity),
       save: jest.fn((entity) => Promise.resolve(entity)),
       delete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
+      softDelete: jest.fn(() => Promise.resolve({ affected: 1, raw: [] })),
       findOneBy: jest.fn(),
     }
 
@@ -277,12 +279,13 @@ describe('FileStorageService', () => {
       storage: FileStorage.HOT,
     }
 
-    it('deletes the entity, storage, and cache entry', async () => {
+    it('soft-deletes the entity, then deletes the storage and cache entry', async () => {
       fileRepository.findOneBy.mockResolvedValueOnce(fileEntity)
 
       await service.deleteFile('abc-123', 'document')
 
-      expect(fileRepository.delete).toHaveBeenCalledWith('abc-123')
+      expect(fileRepository.softDelete).toHaveBeenCalledWith('abc-123')
+      expect(fileRepository.delete).not.toHaveBeenCalled()
       expect(storageService.delete).toHaveBeenCalledWith(
         'abc-123',
         FileStorage.HOT,
@@ -301,7 +304,7 @@ describe('FileStorageService', () => {
         HttpException,
       )
 
-      expect(fileRepository.delete).not.toHaveBeenCalled()
+      expect(fileRepository.softDelete).not.toHaveBeenCalled()
       expect(storageService.delete).not.toHaveBeenCalled()
       expect(fileCacheService.delete).not.toHaveBeenCalled()
     })

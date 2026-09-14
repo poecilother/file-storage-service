@@ -113,7 +113,7 @@ export class FileStorageService {
       throw this.entityNotFoundError(id, type)
     }
 
-    await this.fileRepository.delete(id)
+    await this.fileRepository.softDelete(id)
 
     await this.storageService
       .delete(id, fileEntity.storage, fileEntity.originalName)
